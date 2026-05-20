@@ -260,11 +260,13 @@ sequenceDiagram
 
     W->>API: addFile(f, 100MB, [c1, c2])
     API->>K: append AddFile event
-    API->>DB: INSERT INTO files; INSERT memberships
+    API->>DB: INSERT INTO files
+    API->>DB: INSERT INTO memberships
     API->>Mem: total_size += 100MB
     API->>Mem: collection_size[c1] += 100MB
     API->>Mem: collection_size[c2] += 100MB
-    API->>Mem: sortedIndex.update(c1); sortedIndex.update(c2)
+    API->>Mem: sortedIndex.update(c1)
+    API->>Mem: sortedIndex.update(c2)
     API-->>W: 200 OK
 ```
 
