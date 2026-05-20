@@ -60,11 +60,11 @@ The simplest design: store everything in a relational table and compute aggregat
 
 ```mermaid
 flowchart LR
-    Client -->|addFile / removeFile| API[API Server]
+    Client -->|"addFile / removeFile"| API[API Server]
     API --> DB[(PostgreSQL<br/>files, memberships)]
     Client -->|getTotalSize| API
     Client -->|getTopN| API
-    API -->|SUM(size) / GROUP BY| DB
+    API -->|"SUM(size) / GROUP BY"| DB
 ```
 
 **Schema:**
@@ -233,13 +233,13 @@ flowchart TB
         Snap[Snapshot Job<br/>every 5 min]
     end
 
-    Writer -->|addFile / removeFile| API
+    Writer -->|"addFile / removeFile"| API
     API -->|append| WAL
     API -->|update| InMem
     API -->|persist| Files
     API -->|persist| Members
 
-    Dashboard -->|getTotalSize / getTopN| API
+    Dashboard -->|"getTotalSize / getTopN"| API
     API -->|read| InMem
 
     WAL -->|replay on restart| InMem

@@ -248,7 +248,7 @@ flowchart TB
     Trend --> Redis
 
     Assign -->|TagAssigned events| K[Kafka]
-    Catalog -->|TagCreated / Merged| K
+    Catalog -->|"TagCreated / Merged"| K
 
     K --> Indexer[Indexer Workers]
     K --> Flink[Flink<br/>Heavy Hitters]
