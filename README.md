@@ -76,6 +76,12 @@ Keep these definitions handy. Every file uses them consistently.
 | `07-scalable-web-app.md` | Scalable Web App | Ground-up architecture, DB, cache, queues, replicas |
 | `08-live-streaming-platform.md` | Live Streaming (Twitch) | Real-time ingest, chunking, low-latency delivery |
 | `09-notification-service.md` | Notification Service | Multi-channel fan-out, delivery tracking, SaaS patterns |
+| `10-file-size-aggregation.md` | File Size & Top-N Collections | Aggregation under writes, top-K, lock-free counters, sharding |
+| `11-rate-limiter.md` | Rate Limiter (+ code) | Token bucket, credit rollover, concurrent counters, Redis Lua |
+| `12-tags-management.md` | Tags Management | M:N data modeling, inverted index, hot-tag mitigation, trending |
+
+Companion code:
+- `code/rate_limiter/` — working Python implementation of the rate limiter with thread-safe unit tests (run with `python -m unittest test_rate_limiter.py -v`).
 
 ---
 

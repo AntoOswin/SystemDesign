@@ -21,9 +21,11 @@ This is a SaaS-adjacent problem that exercises: event-driven architecture, fan-o
 - Channels: email (60%), push (25%), SMS (10%), in-app (30%), webhook (5%). (Percentages overlap — one notification may go to multiple channels.)
 
 **Non-functional requirements:**
-- **Reliability:** Critical notifications (password reset, security alerts) must never be lost.
+- **Reliability:** **At-least-once delivery** for every notification, **with idempotency to prevent duplicates.** Critical notifications (password reset, security alerts) must never be lost.
 - **Low latency:** Transactional notifications (OTP codes, order confirmations) delivered within seconds.
-- **Scalability:** Handle bursts without dropping notifications.
+- **Scalability:** Absorb **traffic spikes up to 10× normal volume** without dropping notifications. Workers auto-scale; queues buffer the rest.
+- **Priority:** Critical alerts (e.g., security breaches) must always be processed ahead of regular alerts (e.g., weekly digest), even under load.
+- **Retries:** Failed deliveries are retried with exponential backoff; after max attempts they land in a Dead-Letter Queue for inspection.
 - **Flexibility:** Easy to add new channels without rewriting the system.
 - **User control:** Respect opt-outs, quiet hours, and channel preferences.
 
@@ -463,10 +465,14 @@ Response 200: {"status": "updated"}
 - Delivery status writes: ~6K/sec (one write per channel per notification).
 - Preference lookups: ~6K/sec (Redis handles this trivially).
 
-## Handling Bursts
-- **Queue absorbs everything.** 100K/sec burst → queue depth grows → workers drain it.
-- Workers auto-scale based on queue depth.
-- Priority queues ensure critical notifications aren't delayed by bulk sends.
+## Handling Bursts (10× Normal Volume)
+- **Queue absorbs everything.** A 10× spike (e.g., normal 6K/sec → spike 60K/sec; peak target 100K/sec) lands in the queue, not on the workers.
+- **Provisioned queue capacity** (Kafka or SQS) sized for 30 minutes of 10× volume — about 100M messages. No drops as long as the queue isn't full.
+- **Workers auto-scale on queue depth.** Horizontal pod autoscaler watches lag; new workers spin up within ~60 seconds. The queue absorbs the gap while workers warm up.
+- **Provider rate-limit headroom.** SES / Twilio / FCM all support pre-negotiated burst quotas; we maintain 2× provisioned capacity beyond steady-state so a 10× event doesn't immediately hit the provider's wall.
+- **Priority queues ensure critical notifications aren't delayed by bulk sends** during the spike (critical OTP for a password-reset storm goes ahead of weekly-digest backlog).
+- **Backpressure to non-critical producers.** If queue depth crosses a threshold, the API starts returning `429` to `low` priority callers while still accepting `critical` and `high`. Marketing waits; security never does.
+- **No drop policy:** Notifications are only dropped after exhausting retries → DLQ. The system never drops in the hot path due to load.
 
 ## Hot-Key Mitigation
 - **Bulk send to all users:** Split into batches of 1,000. Each batch is a queue message. Workers process batches in parallel.
@@ -493,6 +499,14 @@ Response 200: {"status": "updated"}
 | **Worker crashes** | In-flight notification lost | Queue redelivers (visibility timeout); idempotency key prevents duplicate |
 | **Queue is full** | API can't enqueue | Return 503; circuit breaker; alert ops |
 | **Preference cache miss** | Slow routing | Fall back to PostgreSQL lookup; slightly slower but correct |
+
+**Retry policy (exponential backoff):**
+- Attempt 1: immediate.
+- Attempt 2: +30 s.
+- Attempt 3: +2 min.
+- Attempt 4: +10 min.
+- Attempt 5: +1 hr.
+- Each attempt re-checks the idempotency key in the delivery store; if the provider already reports `sent` or `delivered` from a previous attempt, the worker skips and marks complete. This is what gives us **at-least-once delivery without duplicates**.
 
 **Dead-Letter Queue (DLQ):**
 - After 5 failed delivery attempts, the notification goes to the DLQ.
